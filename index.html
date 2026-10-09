@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Code Maker</title>
+<style>
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #0b0d10;
+  --panel: #12161b;
+  --panel2: #181e25;
+  --line: #303943;
+  --text: #edf2f7;
+  --muted: #8995a3;
+  --accent: #63d8ff;
+  --good: #78e08f;
+  --warn: #ffd166;
+  --bad: #ff6b6b;
+}
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+/* The whole app fits the screen: no page scroll */
+.app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 6px;
+}
+
+header {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.logo { font-size: 1rem; font-weight: 800; letter-spacing: .08em; }
+.sub { color: var(--muted); font-size: .65rem; letter-spacing: .05em; }
+
+#projName {
+  margin-left: auto;
+  background: #080a0d;
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: .8rem;
+  width: 160px;
+  min-width: 0;
+}
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; }
+
+.tab {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: .78rem;
+}
+.tab.active { color: var(--text); border-color: var(--accent); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 6px; }
+
+button {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  padding: 8px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: .78rem;
+  font-family: inherit;
+}
+button:hover { border-color: var(--accent); }
+#testBtn { border-color: var(--good); }
+#saveBtn { border-color: var(--warn); }
+#launchBtn { border-color: var(--accent); color: var(--accent); }
+
+/* View switch (mobile only) */
+.viewswitch { display: none; gap: 6px; }
+.viewswitch button { flex: 1; }
+.viewswitch button.active { border-color: var(--accent); color: var(--accent); }
+
+/* Workspace: editor + preview share the screen */
+.work {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pane {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: #080a0d;
+}
+
+.pane-title {
+  background: var(--panel);
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+}
+
+textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 12px;
+  background: transparent;
+  color: #dce7ef;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.previewbox { background: white; flex: 1; min-height: 0; }
+iframe { width: 100%; height: 100%; border: 0; display: block; background: white; }
+
+.status {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font: 12px monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status.err { color: var(--bad); }
+.status.ok { color: var(--good); }
+
+/* FULLSCREEN LAUNCH */
+#launch {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #fff;
+  display: none;
+}
+#launch.open { display: block; }
+#launch iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.floatbar {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  opacity: .85;
+}
+.floatbar button { background: rgba(11,13,16,.85); backdrop-filter: blur(6px); }
+
+.pad {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 3;
+  display: none;
+  justify-content: space-between;
+  padding: 0 14px;
+  pointer-events: none;
+}
+.pad.show { display: flex; }
+.pad > * { pointer-events: auto; }
+.dpad { display: grid; grid-template-columns: repeat(3, 50px); gap: 4px; }
+.pad .key {
+  height: 50px;
+  border: 1px solid var(--line);
+  background: rgba(24,30,37,.8);
+  color: #fff;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.pad .key:active { border-color: var(--accent); }
+.pad .blank { visibility: hidden; }
+.ab { display: flex; gap: 10px; align-items: center; }
+.ab .key { width: 58px; height: 58px; border-radius: 50%; }
+
+/* LOAD MODAL */
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0,0,0,.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+#modal.open { display: flex; }
+
+.sheet {
+  width: min(640px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.sheet-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  letter-spacing: .08em;
+  font-size: .8rem;
+}
+.list { overflow-y: auto; padding: 8px; display: grid; gap: 8px; }
+.empty { color: var(--muted); padding: 24px; text-align: center; font-size: .85rem; }
+
+.item {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 6px;
+  padding: 10px;
+}
+.item-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.item-name { font-weight: 800; }
+.item-date { color: var(--muted); font-size: .7rem; }
+.item pre {
+  margin: 8px 0;
+  padding: 8px;
+  background: #080a0d;
+  border: 1px solid var(--line);
+  color: #b9c6d2;
+  font: 11px/1.4 monospace;
+  max-height: 84px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.item-actions { display: flex; gap: 6px; }
+.item-actions button { padding: 6px 10px; }
+.item-actions .del { margin-left: auto; color: var(--bad); }
+
+/* MOBILE: one pane at a time, full height */
+@media (max-width: 800px) {
+  .viewswitch { display: flex; }
+  .work { grid-template-columns: 1fr; }
+  .work[data-view="edit"] .pane.view { display: none; }
+  .work[data-view="view"] .pane.edit { display: none; }
+  #projName { width: 120px; }
+  .sub { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header>
+    <div>
+      <div class="logo">CODE MAKER</div>
+      <div class="sub">CODE AS INSTRUMENT • LOCAL BUILD ENVIRONMENT</div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-lang="html">HTML</button>
+      <button class="tab" data-lang="css">CSS</button>
+      <button class="tab" data-lang="js">JS</button>
+      <button class="tab" data-lang="theory">THEORY</button>
+    </div>
+    <input id="projName" placeholder="Project name" value="Untitled" maxlength="40" autocomplete="off">
+  </header>
+
+  <div class="controls">
+    <button id="buildBtn">BUILD</button>
+    <button id="launchBtn">LAUNCH ⛶</button>
+    <button id="testBtn">TEST</button>
+    <button id="saveBtn">SAVE</button>
+    <button id="loadBtn">LOAD</button>
+    <button id="quantizeBtn">QUANTIZE</button>
+    <button id="exportBtn">EXPORT</button>
+    <button id="newBtn">NEW</button>
+  </div>
+
+  <div class="viewswitch" id="viewswitch">
+    <button data-view="edit" class="active">EDIT</button>
+    <button data-view="view">PREVIEW</button>
+  </div>
+
+  <div class="work" id="work" data-view="edit">
+    <section class="pane edit">
+      <div class="pane-title"><span id="editorTitle">EDITOR • HTML</span><span id="dirty"></span></div>
+      <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    </section>
+
+    <section class="pane view">
+      <div class="pane-title"><span>PREVIEW • LIVE APP</span><span>buttons work here</span></div>
+      <div class="previewbox">
+        <iframe id="preview" title="preview"
+          sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups"></iframe>
+      </div>
+    </section>
+  </div>
+
+  <div class="status" id="status">READY • LOCAL MODE</div>
+</div>
+
+<!-- FULLSCREEN LAUNCH -->
+<div id="launch">
+  <div class="floatbar">
+    <button id="padBtn">PAD</button>
+    <button id="editBtn">✎ EDIT</button>
+    <button id="closeBtn">✕</button>
+  </div>
+  <iframe id="launchFrame" title="app"
+    sandbox="allow-scripts allow-same-origin allow-modals allow-forms allow-popups"></iframe>
+  <div class="pad" id="pad">
+    <div class="dpad">
+      <div class="key blank"></div>
+      <div class="key" data-key="ArrowUp">↑</div>
+      <div class="key blank"></div>
+      <div class="key" data-key="ArrowLeft">←</div>
+      <div class="key" data-key="ArrowDown">↓</div>
+      <div class="key" data-key="ArrowRight">→</div>
+    </div>
+    <div class="ab">
+      <div class="key" data-key="b">B</div>
+      <div class="key" data-key="a">A</div>
+    </div>
+  </div>
+</div>
+
+<!-- LOAD MODAL -->
+<div id="modal">
+  <div class="sheet">
+    <div class="sheet-head"><span>SAVED IN THIS BROWSER</span><button id="modalClose">✕</button></div>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STATE
+   ========================================================= */
+
+const DEFAULT_CODE = {
+html: `<div id="app">
+  <h1>My App</h1>
+  <p id="out">Build something.</p>
+  <button onclick="hello()">PRESS</button>
+  <button onclick="count()">COUNT</button>
+</div>`,
+
+css: `body {
+  font-family: system-ui;
+  padding: 30px;
+}
+
+h1 {
+  letter-spacing: 2px;
+}
+
+button {
+  padding: 12px 18px;
+  font-size: 16px;
+  margin-right: 8px;
+}`,
+
+js: `let n = 0;
+
+function hello() {
+  document.getElementById("out").textContent = "Hello from Code Maker";
+}
+
+function count() {
+  n++;
+  document.getElementById("out").textContent = "Count: " + n;
+}`,
+
+theory: `// CODE THEORY
+
+// HTML = structure
+// CSS  = appearance
+// JS   = behavior
+
+// INPUT
+// ↓
+// FUNCTION
+// ↓
+// OUTPUT
+
+// A button in HTML:   <button onclick="count()">
+// Its function in JS: function count() { ... }
+// The names must match. TEST checks this for you.
+
+// PREVIEW = your app, live
+// LAUNCH  = your app, fullscreen
+// SAVE    = keep it in this browser
+// LOAD    = bring a saved build back
+`
+};
+
+const KEY_DRAFT = "codeMakerDraft";
+const KEY_PROJECTS = "codeMakerProjects";
+const KEY_OLD = "codeMakerProject"; // from earlier version
+
+let code = JSON.parse(JSON.stringify(DEFAULT_CODE));
+let currentLanguage = "html";
+
+const $ = id => document.getElementById(id);
+const editor = $("editor");
+const statusEl = $("status");
+const projName = $("projName");
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (kind ? " " + kind : "");
+}
+
+/* storage helpers (safe) */
+function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) {
+  try { localStorage.setItem(k, v); return true; } catch { return false; }
+}
+function getProjects() {
+  try { return JSON.parse(lsGet(KEY_PROJECTS)) || {}; } catch { return {}; }
+}
+
+/* =========================================================
+   EDITOR
+   ========================================================= */
+
+function loadEditor() {
+  editor.value = code[currentLanguage];
+  $("editorTitle").textContent = "EDITOR • " + currentLanguage.toUpperCase();
+}
+
+function saveEditor() {
+  code[currentLanguage] = editor.value;
+}
+
+function saveDraft() {
+  saveEditor();
+  lsSet(KEY_DRAFT, JSON.stringify({ name: projName.value, code }));
+}
+
+let draftTimer;
+editor.addEventListener("input", () => {
+  $("dirty").textContent = "● unsaved";
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraft, 400);
+});
+
+/* Tab key inserts two spaces */
+editor.addEventListener("keydown", e => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const s = editor.selectionStart;
+    editor.setRangeText("  ", s, editor.selectionEnd, "end");
+    editor.dispatchEvent(new Event("input"));
+  }
+});
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    saveEditor();
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    currentLanguage = tab.dataset.lang;
+    loadEditor();
+    setStatus("EDITOR • " + currentLanguage.toUpperCase());
+  });
+});
+
+/* =========================================================
+   BUILD
+   ========================================================= */
+
+function buildDocument() {
+  saveEditor();
+  /* Reports runtime errors back to the status bar */
+  const reporter = `<script>
+    window.addEventListener("error", function(e){
+      parent.postMessage({ cmError: e.message + (e.lineno ? " (line " + e.lineno + ")" : "") }, "*");
+    });
+  <\/script>`;
+  const safeJs = code.js.replace(/<\/script>/gi, "<\\/script>");
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${code.css}</style>
+</head>
+<body>
+${code.html}
+${reporter}
+<script>${safeJs}<\/script>
+</body>
+</html>`;
+}
+
+window.addEventListener("message", e => {
+  if (e.data && e.data.cmError) setStatus("RUNTIME ERROR • " + e.data.cmError, "err");
+});
+
+function build(quiet) {
+  $("preview").srcdoc = buildDocument();
+  saveDraft();
+  if (!quiet) setStatus("BUILD COMPLETE • PREVIEW UPDATED", "ok");
+}
+$("buildBtn").addEventListener("click", () => {
+  build();
+  if (matchMedia("(max-width:800px)").matches) setView("view");
+});
+
+/* =========================================================
+   QUANTIZE (whitespace only)
+   ========================================================= */
+
+$("quantizeBtn").addEventListener("click", () => {
+  saveEditor();
+  const v = editor.value
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n");
+  editor.value = v;
+  code[currentLanguage] = v;
+  saveDraft();
+  setStatus("QUANTIZED • SYNTAX PRESERVED");
+});
+
+/* =========================================================
+   TEST: syntax + do HTML buttons match JS functions?
+   ========================================================= */
+
+function test() {
+  saveEditor();
+  const problems = [];
+
+  try { new Function(code.js); }
+  catch (err) { problems.push("JS syntax: " + err.message); }
+
+  const doc = new DOMParser().parseFromString(code.html, "text/html");
+  if (doc.querySelector("parsererror")) problems.push("HTML parse error");
+
+  /* find function names called by inline handlers */
+  const called = new Set();
+  doc.querySelectorAll("*").forEach(el => {
+    [...el.attributes].forEach(a => {
+      if (/^on/i.test(a.name)) {
+        const m = a.value.match(/^\s*([A-Za-z_$][\w$]*)\s*\(/);
+        if (m) called.add(m[1]);
+      }
+    });
+  });
+
+  const builtins = ["alert", "confirm", "prompt", "console", "location", "history", "window", "document", "this", "event"];
+  called.forEach(name => {
+    if (builtins.includes(name)) return;
+    const defined = new RegExp(
+      "(function\\s+" + name + "\\b)|((?:var|let|const)\\s+" + name + "\\s*=)|(window\\." + name + "\\s*=)"
+    ).test(code.js);
+    if (!defined) problems.push("Button calls " + name + "() but JS has no function " + name);
+  });
+
+  if (problems.length) setStatus("TEST • " + problems.join(" | "), "err");
+  else setStatus("TEST PASSED • " + (called.size ? called.size + " button function(s) matched" : "NO SYNTAX ERRORS"), "ok");
+}
+$("testBtn").addEventListener("click", test);
+
+/* =========================================================
+   SAVE / LOAD (browser storage)
+   ========================================================= */
+
+function saveProject() {
+  saveEditor();
+  let name = projName.value.trim() || "Untitled";
+  projName.value = name;
+  const projects = getProjects();
+  projects[name] = { code: JSON.parse(JSON.stringify(code)), updated: Date.now() };
+  if (lsSet(KEY_PROJECTS, JSON.stringify(projects))) {
+    $("dirty").textContent = "";
+    saveDraft();
+    setStatus('SAVED • "' + name + '" is in this browser', "ok");
+  } else {
+    setStatus("SAVE FAILED • browser storage blocked or full. Use EXPORT.", "err");
+  }
+}
+$("saveBtn").addEventListener("click", saveProject);
+
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    saveProject();
+  }
+});
+
+function esc(s) {
+  return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function openLoad() {
+  const projects = getProjects();
+  const names = Object.keys(projects).sort((a, b) => projects[b].updated - projects[a].updated);
+  const list = $("list");
+
+  if (!names.length) {
+    list.innerHTML = '<div class="empty">Nothing saved in this browser yet.<br>Press SAVE to keep your code.</div>';
+  } else {
+    list.innerHTML = names.map(n => {
+      const p = projects[n];
+      const snippet = esc((p.code.html || "").slice(0, 260));
+      return `<div class="item" data-name="${esc(n)}">
+        <div class="item-top">
+          <span class="item-name">${esc(n)}</span>
+          <span class="item-date">${new Date(p.updated).toLocaleString()}</span>
+        </div>
+        <pre>${snippet}</pre>
+        <div class="item-actions">
+          <button data-act="load">LOAD</button>
+          <button data-act="play">LAUNCH</button>
+          <button data-act="del" class="del">DELETE</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  $("modal").classList.add("open");
+}
+
+function closeLoad() { $("modal").classList.remove("open"); }
+
+$("loadBtn").addEventListener("click", openLoad);
+$("modalClose").addEventListener("click", closeLoad);
+$("modal").addEventListener("click", e => { if (e.target.id === "modal") closeLoad(); });
+
+$("list").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const name = btn.closest(".item").dataset.name;
+  const projects = getProjects();
+  const p = projects[name];
+  if (!p) return;
+
+  if (btn.dataset.act === "del") {
+    if (confirm('Delete "' + name + '" from this browser?')) {
+      delete projects[name];
+      lsSet(KEY_PROJECTS, JSON.stringify(projects));
+      openLoad();
+      setStatus('DELETED • "' + name + '"');
+    }
+    return;
+  }
+
+  code = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CODE)), p.code);
+  projName.value = name;
+  currentLanguage = "html";
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.lang === "html"));
+  loadEditor();
+  build(true);
+  $("dirty").textContent = "";
+  closeLoad();
+  setStatus('LOADED • "' + name + '"', "ok");
+  if (btn.dataset.act === "play") launch();
+});
+
+/* NEW */
+$("newBtn").addEventListener("click", () => {
+  if (!confirm("Start a new project? Unsaved changes will be lost.")) return;
+  code = JSON.parse(JSON.stringify(DEFAULT_CODE));
+  projName.value = "Untitled";
+  currentLanguage = "html";
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.lang === "html"));
+  loadEditor();
+  build(true);
+  $("dirty").textContent = "";
+  setStatus("NEW PROJECT");
+});
+
+/* =========================================================
+   EXPORT (standalone .html you can open anywhere)
+   ========================================================= */
+
+$("exportBtn").addEventListener("click", () => {
+  const doc = buildDocument().replace(/<script>\s*window\.addEventListener\("error"[\s\S]*?<\/script>\s*/, "");
+  const title = (projName.value.trim() || "app").replace(/[^\w\- ]+/g, "");
+  const blob = new Blob([doc], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = (title || "app") + ".html";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setStatus("EXPORTED • standalone HTML file downloaded", "ok");
+});
+
+/* =========================================================
+   LAUNCH (fullscreen play)
+   ========================================================= */
+
+const launchEl = $("launch");
+const launchFrame = $("launchFrame");
+
+function launch() {
+  launchFrame.srcdoc = buildDocument();
+  saveDraft();
+  launchEl.classList.add("open");
+  const fs = launchEl.requestFullscreen || launchEl.webkitRequestFullscreen;
+  if (fs) { try { const r = fs.call(launchEl); if (r && r.catch) r.catch(() => {}); } catch {} }
+  setTimeout(() => { try { launchFrame.contentWindow.focus(); } catch {} }, 150);
+}
+
+function closeLaunch() {
+  launchEl.classList.remove("open");
+  launchFrame.srcdoc = "";
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    try { const r = exit.call(document); if (r && r.catch) r.catch(() => {}); } catch {}
+  }
+}
+
+$("launchBtn").addEventListener("click", launch);
+$("closeBtn").addEventListener("click", closeLaunch);
+$("editBtn").addEventListener("click", () => {
+  closeLaunch();
+  if (matchMedia("(max-width:800px)").matches) setView("edit");
+  editor.focus();
+});
+$("padBtn").addEventListener("click", () => $("pad").classList.toggle("show"));
+
+/* browser leaves fullscreen (Esc) -> keep overlay so the app stays playable; use ✕ to close */
+
+/* On-screen pad sends real key events into the running app */
+document.querySelectorAll("#pad [data-key]").forEach(btn => {
+  btn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    const k = btn.dataset.key;
+    try {
+      const w = launchFrame.contentWindow;
+      ["keydown", "keyup"].forEach(type => {
+        const ev = new w.KeyboardEvent(type, { key: k, bubbles: true, cancelable: true });
+        w.document.dispatchEvent(ev);
+      });
+    } catch {}
+  });
+});
+
+/* =========================================================
+   MOBILE VIEW SWITCH
+   ========================================================= */
+
+function setView(v) {
+  $("work").dataset.view = v;
+  document.querySelectorAll("#viewswitch button")
+    .forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  if (v === "view") build(true);
+}
+document.querySelectorAll("#viewswitch button")
+  .forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+
+/* =========================================================
+   STARTUP: restore last draft (or old project), then build
+   ========================================================= */
+
+(function init() {
+  let restored = false;
+  try {
+    const d = JSON.parse(lsGet(KEY_DRAFT));
+    if (d && d.code) {
+      code = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CODE)), d.code);
+      projName.value = d.name || "Untitled";
+      restored = true;
+    }
+  } catch {}
+
+  if (!restored) {
+    try {
+      const old = JSON.parse(lsGet(KEY_OLD));
+      if (old) { code = Object.assign(JSON.parse(JSON.stringify(DEFAULT_CODE)), old); restored = true; }
+    } catch {}
+  }
+
+  loadEditor();
+  build(true);
+  setStatus(restored ? "DRAFT RESTORED • SAVE to keep it, LOAD to open saved builds" : "READY • LOCAL MODE");
+})();
+</script>
+</body>
+</html>
